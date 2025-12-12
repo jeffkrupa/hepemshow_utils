@@ -5,7 +5,7 @@
 #SBATCH --time=03:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=2G
-#SBATCH --account=atlas:compef
+#SBATCH --account=atlas:usatlas
 #SBATCH --partition=roma
 #SBATCH --chdir=/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_reproductionattempt1/hepemshow/build
 
@@ -18,5 +18,8 @@ OUTPUT_SUFFIX=${OUTPUT_SUFFIX:-}
 KE_CUT=${KE_CUT:-}
 THRESHOLD=${THRESHOLD:-}
 THRESHOLD2=${THRESHOLD2:--1.}
+DERIV_TARGET=${DERIV_TARGET:-a}
+ENERGY_VALUE=${ENERGY_VALUE:-10000}
+EVENTS_PER_JOB=${EVENTS_PER_JOB:-20000}
 
-./run_testem3.sh "$SEED" "$OUTDIR" "$A_VALUE" "$USE_AD" "$OUTPUT_SUFFIX" "$KE_CUT" "$THRESHOLD" "$THRESHOLD2"
+./hepemshow_utils/jobs/run_testem3.sh "$SEED" "$OUTDIR" "$A_VALUE" "$USE_AD" "$OUTPUT_SUFFIX" "$KE_CUT" "$THRESHOLD" "$THRESHOLD2" "$DERIV_TARGET" "$ENERGY_VALUE" "$EVENTS_PER_JOB"

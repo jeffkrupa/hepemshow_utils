@@ -18,6 +18,7 @@ def plot_edeps(
     ms=3.5,
     grid=True,
     suffix=None,
+    default_deriv_target="a",
     # NEW: variance scaling options
     plot_variance_scaling=True,
     file_counts=(10, 100, 1000),
@@ -32,10 +33,12 @@ def plot_edeps(
     ----------
     samples : list[(path,label) or dict]
         Each item is either (filepath_or_dir, label) or {'path':..., 'label':...}.
-        To plot a finite-difference estimate, supply a dict with 'path' pointing to
-        a directory that contains paired *_plus / *_minus files and specify 'epsilon'
-        (optionally 'label'). Example:
-            {'path': 'outputs/finite_diff...', 'epsilon': 0.005, 'label': 'FD eps=5e-3'}
+        To override which derivative the dataset represents, set key 'deriv_target' to
+        'a' (absorber thickness, default) or 'energy' (primary energy).  To plot a
+        finite-difference estimate, supply a dict with 'path' pointing to a directory
+        that contains paired *_plus / *_minus files and specify 'epsilon' (optionally
+        'label' and 'deriv_target'). Example:
+            {'path': 'outputs/finite_diff...', 'epsilon': 0.005, 'label': 'FD eps=5e-3', 'deriv_target': 'energy'}
         If 'path' is a directory, all files in that directory are loaded and averaged for the
         main plot. For the variance-scaling figure, subsets of the directory files are used.
         Each file must be a text file with shape (N_layers, 4) columns:
@@ -54,6 +57,7 @@ def plot_edeps(
     norm = []
     for s in samples:
         if isinstance(s, dict):
+            deriv_target = s.get("deriv_target", default_deriv_target)
             if "path_plus" in s or "path_minus" in s:
                 if "path_plus" not in s or "path_minus" not in s or "epsilon" not in s:
                     raise ValueError("Finite-diff explicit spec requires 'path_plus', 'path_minus', and 'epsilon'.")
@@ -67,26 +71,28 @@ def plot_edeps(
                     "path_minus": path_minus,
                     "epsilon": epsilon,
                     "label": label,
+                    "deriv_target": deriv_target,
                 })
             else:
                 if "path" not in s:
                     raise ValueError("Sample dict must include 'path'.")
                 path = Path(s["path"])
                 epsilon = s.get("epsilon", None)
+                label = s.get("label", path.name)
                 if epsilon is not None:
-                    label = s.get("label", path.name)
                     norm.append({
                         "type": "finite_diff",
                         "path": path,
                         "epsilon": float(epsilon),
                         "label": label,
+                        "deriv_target": deriv_target,
                     })
                 else:
-                    label = s.get("label", path.name)
                     norm.append({
                         "type": "single",
                         "path": path,
                         "label": label,
+                        "deriv_target": deriv_target,
                     })
         else:
             path, label = s
@@ -95,6 +101,7 @@ def plot_edeps(
                 "type": "single",
                 "path": path,
                 "label": label,
+                "deriv_target": default_deriv_target,
             })
 
     def _load_file(path):
@@ -131,10 +138,11 @@ def plot_edeps(
     for spec in norm:
         label = spec["label"]
         stype = spec["type"]
+        deriv_target = spec.get("deriv_target", default_deriv_target)
         if stype == "single":
             path = spec["path"]
             _ensure_paths_exist(path)
-            n_samples = 0
+            n_samples = 0.0
             if path.is_dir():
                 files = sorted(path.glob("*"))[:nmaxfiles]
                 arrays = []
@@ -145,12 +153,24 @@ def plot_edeps(
                     raise ValueError(f"No valid files found in directory {path}")
                 arr_avg = np.mean(arrays, axis=0)
                 n_samples = float(n_samples_per_file) * len(arrays)
-                loaded.append((path, label, arr_avg, n_samples))
+                loaded.append({
+                    "path": path,
+                    "label": label,
+                    "array": arr_avg,
+                    "n_samples": n_samples,
+                    "deriv_target": deriv_target,
+                })
                 dir_cache[path] = arrays
                 print(f"Averaging files in directory: {path} -> {len(arrays)} files")
             else:
                 arr = _load_file(path)
-                loaded.append((path, label, arr, n_samples))
+                loaded.append({
+                    "path": path,
+                    "label": label,
+                    "array": arr,
+                    "n_samples": n_samples,
+                    "deriv_target": deriv_target,
+                })
         elif stype in {"finite_diff", "finite_diff_explicit"}:
             epsilon = spec["epsilon"]
             if stype == "finite_diff":
@@ -177,7 +197,13 @@ def plot_edeps(
                 arrays = _load_finite_diff_from_pairs(pairs, epsilon)
                 arr_avg = np.mean(arrays, axis=0)
                 n_samples = float(n_samples_per_file) * len(arrays)
-                loaded.append((base, label, arr_avg, n_samples))
+                loaded.append({
+                    "path": base,
+                    "label": label,
+                    "array": arr_avg,
+                    "n_samples": n_samples,
+                    "deriv_target": deriv_target,
+                })
                 dir_cache[base] = arrays
                 print(f"Finite-diff directory {base}: {len(arrays)} paired files (epsilon={epsilon})")
             else:
@@ -188,8 +214,15 @@ def plot_edeps(
                 arrays = _load_finite_diff_from_pairs(pairs, epsilon)
                 arr_avg = arrays[0]
                 n_samples = float(n_samples_per_file)
-                loaded.append((path_plus.parent, label, arr_avg, n_samples))
-                dir_cache[path_plus.parent] = arrays
+                base = path_plus.parent
+                loaded.append({
+                    "path": base,
+                    "label": label,
+                    "array": arr_avg,
+                    "n_samples": n_samples,
+                    "deriv_target": deriv_target,
+                })
+                dir_cache[base] = arrays
                 print(f"Finite-diff explicit files: {path_plus}, {path_minus} (epsilon={epsilon})")
         else:
             raise ValueError(f"Unhandled sample type: {stype}")
@@ -207,17 +240,21 @@ def plot_edeps(
     fig, (axL, axR) = plt.subplots(1, 2, figsize=figsize, sharex=True)
 
     # Left: mean energy deposit with SE
-    for _, label, arr, n_samples in loaded:
+    for entry in loaded:
+        label = entry["label"]
+        arr = entry["array"]
+        n_samples = entry["n_samples"]
         mean_E = arr[:, 0]
         var_E  = arr[:, 1]
         # Standard error of the mean: sqrt(var / N_total)
         se_E   = np.sqrt(var_E / float(n_samples)) if n_samples > 0 else np.nan
 
+        count_suffix = f" (N={n_samples:.2e})" if n_samples > 0 else ""
         axL.errorbar(
             xvals, mean_E,
             yerr=se_E,
             fmt='o-', ms=ms, lw=lw, capsize=capsize,
-            alpha=alpha_lines, label=label + f" (N={n_samples:.2e})",
+            alpha=alpha_lines, label=label + count_suffix,
         )
 
     axL.set_xlabel("Layer")
@@ -225,22 +262,47 @@ def plot_edeps(
     if grid: axL.grid(True, linestyle='--', alpha=0.4)
     axL.legend(loc="best", fontsize=14)
 
+    target_axis_map = {
+        "a": r"$\partial E / \partial a$",
+        "energy": r"$\partial E / \partial E_{\mathrm{prim}}$",
+    }
+    target_legend_map = {
+        "a": "dE/da",
+        "energy": "dE/dE_prim",
+    }
+    unique_targets = sorted({entry["deriv_target"] for entry in loaded})
+    if len(unique_targets) == 1:
+        target = unique_targets[0]
+        axis_label = f"Mean energy deposit derivative ({target_axis_map.get(target, target)})"
+    else:
+        axis_label = "Mean energy deposit derivative"
+
     # Right: mean derivative with SE
-    for _, label, arr, n_samples in loaded:
+    for entry in loaded:
+        label = entry["label"]
+        arr = entry["array"]
+        n_samples = entry["n_samples"]
+        target = entry["deriv_target"]
         mean_dE = arr[:, 2]
         var_dE  = arr[:, 3]
         se_dE   = np.sqrt(var_dE / float(n_samples)) if n_samples > 0 else np.nan
 
+        legend_label = label
+        if len(unique_targets) > 1:
+            legend_label = f"{legend_label} [{target_legend_map.get(target, target)}]"
+
+        count_suffix = f" (N={n_samples:.2e})" if n_samples > 0 else ""
         axR.errorbar(
             xvals, mean_dE,
             yerr=se_dE,
             fmt='o-', ms=ms, lw=lw, capsize=capsize,
-            alpha=alpha_lines, label=label,
+            alpha=alpha_lines, label=legend_label + count_suffix,
         )
         
     axR.set_xlabel("Layer")
-    axR.set_ylabel("Mean energy deposit derivative")
+    axR.set_ylabel(axis_label)
     if grid: axR.grid(True, linestyle='--', alpha=0.4)
+    axR.legend(loc="best", fontsize=14)
 
     if title:
         fig.suptitle(title, y=1.02, fontsize=16)
@@ -315,18 +377,31 @@ plot_edeps(
         #("outputs/absorberderivative_killdescendents_threshold2_m1p0", "fix + kill descedents + threshold2=-1"),
         #("outputs/ad_a2.3_kecut0p1", "fix + kill descedents + ek>0.1 MeV"),
         #("outputs/ad_a2.3_kecut0p3", "fix + kill descedents + ek>0.3 MeV"),
-        ("outputs/ad_a2.3", "fix + kill descendents (next 80M events)"),
-        ("outputs/ad_a2.3_thr0p05", "fix + kill descendents (threshold=0.05)"),
-        ("outputs/ad_a2.3_thr0p2", "fix + kill descendents (threshold=0.2)"),
-        {"path": "outputs/finite_diff_a2.3_eps0.005", "label": "finite diff eps=5e-3", "epsilon": 0.005},
+        #("outputs/ad_a2.3", "fix + kill descendents (next 80M events)"),
+        #("outputs/ad_a2.3_thr0p05", "fix + kill descendents (threshold=0.05)"),
+        #("outputs/ad_a2.3_thr0p2", "fix + kill descendents (threshold=0.2)"),
+        # {"path": "outputs/ad_energy_E10000", "label": "AD primary energy derivative", "deriv_target": "energy"},
+        #{"path": "outputs/finite_diff_a2.3_eps0.005", "label": "finite diff eps=5e-3", "epsilon": 0.005},
         #{"path": "outputs/finite_diff_a2.3_eps0.0005", "label": "finite diff eps=5e-4", "epsilon": 0.0005},
+        #{"path": "../jobs/outputs/finite_diff_energy_E10000_eps0p1","label" : "finite diff eps=0.1", "deriv_target" : "energy", "epsilon" : 0.1},
+
+        ##ABSORBER DERIVATIVES
+        {"path": "../jobs/outputs/finite_diff_a2.3_eps0.005", "label": "finite diff eps=5e-3", "epsilon": 0.005},
+        {"path" : "../jobs/outputs/absorberderivative_killdescendents", "label" : "threshold=0.1", "deriv_target" : "a"},
+        ###ENERGY DERIVATIVES
+        #{"path": "../jobs/outputs/finite_diff_energy_E10000_eps10","label" : "finite diff eps=10", "deriv_target" : "energy", "epsilon" : 50},
+        #{"path": "../jobs/outputs/finite_diff_energy_E10000_eps50","label" : "finite diff eps=10", "deriv_target" : "energy", "epsilon" : 50},
+        #{"path": "../jobs/outputs/ad_energy_E10000_thr0p1","label" : "threshold=0.1", "deriv_target" : "energy"},
+
+        #{"path": "../jobs/outputs/ad_a2p3_E10000_kecut0p1_thr_small_thr2_small/", "label" : "ek>0.1 MeV (no geometry SG)", "deriv_target" : "a"},
+        #{"path": "../jobs/outputs/ad_a2p3_E10000_thr0p1","label" : "threshold=0.1", "deriv_target" : "a"},
 
 
 
     ],
     n_samples_per_file=2e4,
     nlayers=50,
-    nmaxfiles=1000,
+    nmaxfiles=5000,
     #suffix="fix0p1",
     plot_variance_scaling=False,
     file_counts=(10, 100, 1000,3500),
