@@ -1,0 +1,196 @@
+#!/bin/bash
+set -euo pipefail
+
+# Arguments:
+#   SEED OUTDIR [A_VALUE] [USE_AD] [OUTPUT_SUFFIX] [KE_CUT] [THRESHOLD] [THRESHOLD2]
+#   [DERIV_TARGET] [ENERGY_VALUE] [EVENTS_PER_JOB] [GRAZING_STOP_TRACK]
+#   [MSC_DISPLACEMENT] [MSC_STEP_RANDOM] [BOUNDARY_TOLERANCE] [MSC_DISP_SAFE_FLOOR]
+#   [STOP_GRAD_MODE] [SAME_BOUNDARY_STOP] [SAME_BOUNDARY_POS_TOL]
+#   [SAME_BOUNDARY_MIN_FLIPS] [SAME_BOUNDARY_FULL_TRACK] [SAME_BOUNDARY_HARD_STOP]
+#   [NUMIA_MFP_FLOOR] [BACKWARD_BOUNDARY_STOP] [ROTATE_UP_FLOOR]
+#   [CONVERSION_REG_EPS] [UMSC_COS_DEN_FLOOR] [UMSC_TAU_BLEND_EPS]
+#   [UMSC_SIMPLE_DEN_FLOOR] [UMSC_DISP_RAD_FLOOR]
+#   [GAMMA_NUMIA_MFP_FLOOR] [GAMMA_PE_EKIN_FLOOR] [BOX_DIR_DEN_FLOOR]
+
+SEED=$1
+OUTDIR=$2
+A_VALUE=${3:-2.3}
+USE_AD=${4:-1}
+OUTPUT_SUFFIX=${5:-""}
+KE_CUT=${6:-""}
+THRESHOLD=${7:-""}
+THRESHOLD2=${8:-"-1."}
+DERIV_TARGET=${9:-"a"}
+ENERGY_VALUE=${10:-"10000"}
+EVENTS_PER_JOB=${11:-"20000"}
+GRAZING_STOP_TRACK=${12:-"1"}
+MSC_DISPLACEMENT=${13:-""}
+MSC_STEP_RANDOM=${14:-""}
+BOUNDARY_TOLERANCE=${15:-""}
+MSC_DISP_SAFE_FLOOR=${16:-""}
+STOP_GRAD_MODE=${17:-"2"}
+SAME_BOUNDARY_STOP=${18:-""}
+SAME_BOUNDARY_POS_TOL=${19:-""}
+SAME_BOUNDARY_MIN_FLIPS=${20:-""}
+SAME_BOUNDARY_FULL_TRACK=${21:-""}
+SAME_BOUNDARY_HARD_STOP=${22:-""}
+NUMIA_MFP_FLOOR=${23:-""}
+BACKWARD_BOUNDARY_STOP=${24:-""}
+ROTATE_UP_FLOOR=${25:-""}
+CONVERSION_REG_EPS=${26:-""}
+UMSC_COS_DEN_FLOOR=${27:-""}
+UMSC_TAU_BLEND_EPS=${28:-""}
+UMSC_SIMPLE_DEN_FLOOR=${29:-""}
+UMSC_DISP_RAD_FLOOR=${30:-""}
+GAMMA_NUMIA_MFP_FLOOR=${31:-""}
+GAMMA_PE_EKIN_FLOOR=${32:-""}
+BOX_DIR_DEN_FLOOR=${33:-""}
+
+A_ARG="${A_VALUE}"
+E_ARG="${ENERGY_VALUE}"
+
+if [[ "${USE_AD}" == "1" ]]; then
+  if [[ "${DERIV_TARGET}" == "energy" ]]; then
+    [[ "${E_ARG}" != *:* ]] && E_ARG="${E_ARG}:1"
+  else
+    [[ "${A_ARG}" != *:* ]] && A_ARG="${A_ARG}:1"
+  fi
+fi
+
+WORKDIR=/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_BLstepsonly/hepemshow/build
+EXE="${WORKDIR}/HepEmShow"
+TMP_BASE="${WORKDIR}/tmp_runs"
+DATA_FILE="${WORKDIR}/../data/hepem_data.json"
+
+mkdir -p "${TMP_BASE}"
+if [[ ! -f "${DATA_FILE}" ]]; then
+  echo "Error: G4HepEm data file not found: ${DATA_FILE}"
+  exit 3
+fi
+
+SUFFIX_TAG="${OUTPUT_SUFFIX:-nosuffix}"
+JOB_TAG="${SLURM_JOB_ID:-nojid}"
+RUN_ID="seed${SEED}_${SUFFIX_TAG}_job${JOB_TAG}_pid$$"
+RUNDIR=$(mktemp -d "${TMP_BASE}/${RUN_ID}_XXXXXX")
+
+cleanup() {
+  if [[ -d "${RUNDIR}" ]]; then
+    rm -rf "${RUNDIR}"
+  fi
+}
+trap cleanup EXIT
+
+cd "${RUNDIR}"
+
+CMD=("${EXE}" -n "${EVENTS_PER_JOB}" -s "${SEED}" -a "${A_ARG}" -e "${E_ARG}" --stop-grad-mode "${STOP_GRAD_MODE}" -y "${GRAZING_STOP_TRACK}" -d "${DATA_FILE}")
+if [[ -n "${THRESHOLD}" ]]; then
+  CMD+=(-f "${THRESHOLD}")
+fi
+if [[ -n "${THRESHOLD2}" ]]; then
+  CMD+=(-k "${THRESHOLD2}")
+fi
+if [[ -n "${KE_CUT}" ]]; then
+  CMD+=(-c "${KE_CUT}")
+fi
+if [[ -n "${MSC_DISPLACEMENT}" ]]; then
+  CMD+=(-m "${MSC_DISPLACEMENT}")
+fi
+if [[ -n "${MSC_STEP_RANDOM}" ]]; then
+  CMD+=(-r "${MSC_STEP_RANDOM}")
+fi
+if [[ -n "${BOUNDARY_TOLERANCE}" ]]; then
+  CMD+=(-u "${BOUNDARY_TOLERANCE}")
+fi
+if [[ -n "${MSC_DISP_SAFE_FLOOR}" ]]; then
+  CMD+=(-w "${MSC_DISP_SAFE_FLOOR}")
+fi
+if [[ -n "${SAME_BOUNDARY_STOP}" ]]; then
+  CMD+=(-q "${SAME_BOUNDARY_STOP}")
+fi
+if [[ -n "${SAME_BOUNDARY_POS_TOL}" ]]; then
+  CMD+=(-z "${SAME_BOUNDARY_POS_TOL}")
+fi
+if [[ -n "${SAME_BOUNDARY_MIN_FLIPS}" ]]; then
+  CMD+=(-j "${SAME_BOUNDARY_MIN_FLIPS}")
+fi
+if [[ -n "${SAME_BOUNDARY_FULL_TRACK}" ]]; then
+  CMD+=(-o "${SAME_BOUNDARY_FULL_TRACK}")
+fi
+if [[ -n "${SAME_BOUNDARY_HARD_STOP}" ]]; then
+  CMD+=(-i "${SAME_BOUNDARY_HARD_STOP}")
+fi
+if [[ -n "${NUMIA_MFP_FLOOR}" ]]; then
+  CMD+=(-A "${NUMIA_MFP_FLOOR}")
+fi
+if [[ -n "${GAMMA_NUMIA_MFP_FLOOR}" ]]; then
+  CMD+=(-T "${GAMMA_NUMIA_MFP_FLOOR}")
+fi
+if [[ -n "${GAMMA_PE_EKIN_FLOOR}" ]]; then
+  CMD+=(-U "${GAMMA_PE_EKIN_FLOOR}")
+fi
+if [[ -n "${BOX_DIR_DEN_FLOOR}" ]]; then
+  CMD+=(-V "${BOX_DIR_DEN_FLOOR}")
+fi
+if [[ -n "${ROTATE_UP_FLOOR}" ]]; then
+  CMD+=(-F "${ROTATE_UP_FLOOR}")
+fi
+if [[ -n "${CONVERSION_REG_EPS}" ]]; then
+  CMD+=(-N "${CONVERSION_REG_EPS}")
+fi
+if [[ -n "${UMSC_COS_DEN_FLOOR}" ]]; then
+  CMD+=(-P "${UMSC_COS_DEN_FLOOR}")
+fi
+if [[ -n "${UMSC_TAU_BLEND_EPS}" ]]; then
+  CMD+=(-Q "${UMSC_TAU_BLEND_EPS}")
+fi
+if [[ -n "${UMSC_SIMPLE_DEN_FLOOR}" ]]; then
+  CMD+=(-R "${UMSC_SIMPLE_DEN_FLOOR}")
+fi
+if [[ -n "${UMSC_DISP_RAD_FLOOR}" ]]; then
+  CMD+=(-S "${UMSC_DISP_RAD_FLOOR}")
+fi
+if [[ -n "${BACKWARD_BOUNDARY_STOP}" ]]; then
+  CMD+=(-B "${BACKWARD_BOUNDARY_STOP}")
+fi
+
+echo "Running command: ${CMD[*]}"
+echo "Running in directory: $(pwd)"
+
+"${CMD[@]}"
+
+mkdir -p "${OUTDIR}"
+
+EDEPS_OUT="edeps_${SEED}"
+if [[ -n "${OUTPUT_SUFFIX}" ]]; then
+  EDEPS_OUT="${EDEPS_OUT}_${OUTPUT_SUFFIX}"
+fi
+
+if [[ -f "edeps_${SEED}" ]]; then
+  mv "edeps_${SEED}" "${OUTDIR}/${EDEPS_OUT}"
+  echo "Moved edeps_${SEED} to ${OUTDIR}/${EDEPS_OUT}"
+else
+  echo "Error: edeps_${SEED} not found in ${RUNDIR}!"
+  exit 2
+fi
+
+if [[ -f "boundary_stats.csv" ]]; then
+  BOUNDARY_OUT="boundary_stats_${SEED}"
+  if [[ -n "${OUTPUT_SUFFIX}" ]]; then
+    BOUNDARY_OUT="${BOUNDARY_OUT}_${OUTPUT_SUFFIX}"
+  fi
+  mv "boundary_stats.csv" "${OUTDIR}/${BOUNDARY_OUT}.csv"
+  echo "Moved boundary_stats.csv to ${OUTDIR}/${BOUNDARY_OUT}.csv"
+else
+  echo "Warning: boundary_stats.csv not found (outputboundarylayers may be disabled)."
+fi
+
+if [[ -f "track_pingpong_stats.csv" ]]; then
+  PINGPONG_OUT="track_pingpong_stats_${SEED}"
+  if [[ -n "${OUTPUT_SUFFIX}" ]]; then
+    PINGPONG_OUT="${PINGPONG_OUT}_${OUTPUT_SUFFIX}"
+  fi
+  mv "track_pingpong_stats.csv" "${OUTDIR}/${PINGPONG_OUT}.csv"
+  echo "Moved track_pingpong_stats.csv to ${OUTDIR}/${PINGPONG_OUT}.csv"
+else
+  echo "Warning: track_pingpong_stats.csv not found (outputpingpongtracks may be disabled)."
+fi
