@@ -1,9 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
+
 from pathlib import Path
+import re
 import mplhep as hep
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+from matplotlib.ticker import MaxNLocator, FuncFormatter
+from matplotlib.patches import Rectangle
 
 plt.style.use(hep.style.ROOT)
+plt.style.use("style.mplstyle")
 
 def plot_edeps(
     samples,
@@ -13,10 +19,10 @@ def plot_edeps(
     title=None,
     figsize=(15, 8),
     alpha_lines=0.9,
-    capsize=2.0,
-    lw=1.6,
+    capsize=3.0,
+    lw=3.5,
     ms=3.5,
-    grid=True,
+    grid=False,
     suffix=None,
     default_deriv_target="a",
     # NEW: variance scaling options
@@ -24,6 +30,9 @@ def plot_edeps(
     file_counts=(10, 100, 1000),
     scaling_figsize=(15, 8),
     nmaxfiles=100,
+    inset_unprotected=None,
+    inset_loc="upper right",
+    inset_size=("37%", "37%"),
 ):
     """
     Plot energy deposit (mean) and its derivative (mean) with standard-error bars.
@@ -52,12 +61,27 @@ def plot_edeps(
         several dataset sizes (file_counts) for any directory sample.
     file_counts : iterable[int]
         The “k files” sizes to plot (e.g., 10, 100, 1000).
+    inset_unprotected : str or dict or None
+        Optional dataset to plot in an inset on the derivative panel.
+        Accepts a filepath/dir or dict with keys {'path', 'label'}.
+        Files must follow the same (N,4) format.
+    inset_loc : str
+        Location for the inset axes (matplotlib legend-style locations).
+    inset_size : tuple(str,str)
+        Size of the inset axes, e.g. ("40%", "40%").
     """
     # Normalize input sample spec
     norm = []
+    inset_from_samples = None
+    inset_skip_paths = set()
+    inset_skip_labels = set()
     for s in samples:
         if isinstance(s, dict):
             deriv_target = s.get("deriv_target", default_deriv_target)
+            if s.get("inset_unprotected", False) and inset_from_samples is None:
+                inset_from_samples = s
+                inset_skip_paths.add(Path(s["path"]))
+                inset_skip_labels.add(s.get("label", "Unprotected"))
             if "path_plus" in s or "path_minus" in s:
                 if "path_plus" not in s or "path_minus" not in s or "epsilon" not in s:
                     raise ValueError("Finite-diff explicit spec requires 'path_plus', 'path_minus', and 'epsilon'.")
@@ -145,6 +169,7 @@ def plot_edeps(
             n_samples = 0.0
             if path.is_dir():
                 files = sorted(path.glob("*"))[:nmaxfiles]
+                #print(files)
                 arrays = []
                 for f in files:
                     arr = _load_file(f)
@@ -238,9 +263,13 @@ def plot_edeps(
 
     # ===== Main figure: means with SE bars =====
     fig, (axL, axR) = plt.subplots(1, 2, figsize=figsize, sharex=True)
+    axR.tick_params(top=False, right=False, labeltop=False, labelright=False)
 
     # Left: mean energy deposit with SE
     for entry in loaded:
+        if entry["path"] in inset_skip_paths or entry["label"] in inset_skip_labels:
+            continue
+
         label = entry["label"]
         arr = entry["array"]
         n_samples = entry["n_samples"]
@@ -253,32 +282,27 @@ def plot_edeps(
         axL.errorbar(
             xvals, mean_E,
             yerr=se_E,
-            fmt='o-', ms=ms, lw=lw, capsize=capsize,
-            alpha=alpha_lines, label=label + count_suffix,
+            fmt='o-', #ms=ms, lw=lw, capsize=capsize,
+            alpha=alpha_lines, label=label #+ count_suffix,
         )
 
-    axL.set_xlabel("Layer")
-    axL.set_ylabel("Mean energy deposit")
+    axL.set_xlabel("Layer", fontsize=24)
+    axL.set_ylabel("energy deposit per layer  $\overline{\mathit{E}_{\mathrm{dep}}}$ [MeV]", fontsize=24)
     if grid: axL.grid(True, linestyle='--', alpha=0.4)
-    axL.legend(loc="best", fontsize=14)
+    #axL.legend(loc="best", fontsize=14)
 
     target_axis_map = {
-        "a": r"$\partial E / \partial a$",
-        "energy": r"$\partial E / \partial E_{\mathrm{prim}}$",
-    }
-    target_legend_map = {
-        "a": "dE/da",
-        "energy": "dE/dE_prim",
+        "a": r"$\partial \overline{\mathit{E}_{\mathrm{dep}}} / \partial \mathit{\alpha}$ [MeV mm$^{-1}$]", 
+        "energy": r"$\partial \overline{\mathit{E}_{\mathrm{dep}}} / \partial \mathit{E}_{\mathrm{beam}}$ [dimensionless]",
     }
     unique_targets = sorted({entry["deriv_target"] for entry in loaded})
-    if len(unique_targets) == 1:
-        target = unique_targets[0]
-        axis_label = f"Mean energy deposit derivative ({target_axis_map.get(target, target)})"
-    else:
-        axis_label = "Mean energy deposit derivative"
+    target = unique_targets[0]
+    axis_label = f"{target_axis_map.get(target, target)}"
 
     # Right: mean derivative with SE
     for entry in loaded:
+        if entry["path"] in inset_skip_paths or entry["label"] in inset_skip_labels:
+            continue
         label = entry["label"]
         arr = entry["array"]
         n_samples = entry["n_samples"]
@@ -287,28 +311,116 @@ def plot_edeps(
         var_dE  = arr[:, 3]
         se_dE   = np.sqrt(var_dE / float(n_samples)) if n_samples > 0 else np.nan
 
-        legend_label = label
-        if len(unique_targets) > 1:
-            legend_label = f"{legend_label} [{target_legend_map.get(target, target)}]"
-
         count_suffix = f" (N={n_samples:.2e})" if n_samples > 0 else ""
         axR.errorbar(
             xvals, mean_dE,
             yerr=se_dE,
-            fmt='o-', ms=ms, lw=lw, capsize=capsize,
-            alpha=alpha_lines, label=legend_label + count_suffix,
+            fmt='o-', #ms=ms, lw=lw, capsize=capsize,
+            alpha=alpha_lines, label=label# + count_suffix,
         )
         
     axR.set_xlabel("Layer")
     axR.set_ylabel(axis_label)
     if grid: axR.grid(True, linestyle='--', alpha=0.4)
-    axR.legend(loc="best", fontsize=14)
+    y_min, y_max = axR.get_ylim()
+    y_pad = 0.4 * (y_max - y_min)
+    axR.set_ylim(y_min, y_max + y_pad)
+
+    if inset_unprotected is None and inset_from_samples is not None:
+        inset_unprotected = {
+            "path": inset_from_samples["path"],
+            "label": inset_from_samples.get("label", "Unprotected"),
+        }
+
+    if inset_unprotected is not None:
+        if isinstance(inset_unprotected, dict):
+            inset_path = Path(inset_unprotected["path"])
+            inset_label = inset_unprotected.get("label", inset_path.name)
+        else:
+            inset_path = Path(inset_unprotected)
+            inset_label = inset_path.name
+        _ensure_paths_exist(inset_path)
+        if inset_path.is_dir():
+            files = sorted(inset_path.glob("*"))[:nmaxfiles]
+            arrays = [_load_file(f) for f in files]
+            if not arrays:
+                raise ValueError(f"No valid files found in directory {inset_path}")
+            inset_arr = np.mean(arrays, axis=0)
+            inset_samples = float(n_samples_per_file) * len(arrays)
+        else:
+            inset_arr = _load_file(inset_path)
+            inset_samples = 0.0
+        inset_mean = inset_arr[:, 2]
+        inset_var = inset_arr[:, 3]
+        inset_se = np.sqrt(inset_var / float(inset_samples)) if inset_samples > 0 else np.nan
+
+        ax_inset = inset_axes(axR, width=inset_size[0], height=inset_size[1], loc="upper right", borderpad=0.0)
+        ax_inset.set_facecolor("white")
+        ax_inset.patch.set_alpha(1.0)
+        ax_inset.patch.set_zorder(10)   # ensure the patch is above axR artists
+        ax_inset.set_zorder(11)         # inset contents above its patch
+        ax_inset.errorbar(
+            xvals, inset_mean,
+            yerr=inset_se,
+            fmt='o-',
+            alpha=alpha_lines,
+            color="grey",
+            markersize=3,
+            linewidth=1.5,
+            label=inset_label,
+        )
+        ax_inset.text(0.45, 0.9, "AD (no stopgrad)", transform=ax_inset.transAxes,
+                      ha="center", va="top", fontsize=15, color="black")
+        #axR.errorbar([], [], yerr=[], fmt='o-', color="grey", label=f"{inset_label}")
+        ax_inset.grid(False)
+        #ax_inset.set_xlabel("Layer", fontsize=10)
+        #ax_inset.set_ylabel(axis_label, fontsize=10)
+        ax_inset.tick_params(axis="both", labelsize=14)
+        ax_inset.xaxis.set_major_locator(MaxNLocator(nbins=2))
+        ax_inset.yaxis.set_major_locator(MaxNLocator(nbins=2))
+        def _sci_tick(v, _pos):
+            if v == 0:
+                return "0"
+            exp = int(np.floor(np.log10(abs(v))))
+            coeff = v / (10 ** exp)
+            return rf"{coeff:.1f}×10$^{{{exp}}}$"
+        #ax_inset.yaxis.set_major_formatter(FuncFormatter(_sci_tick))
+        if target == "a":
+            ax_inset.set_yticks([-2.5e12, 0, 2.5e12])
+        elif target == "energy":
+            ax_inset.set_yticks([-1.5e8, 0, 1.5e8])
+        ax_inset.minorticks_off()
+        ax_inset.yaxis.set_minor_locator(plt.NullLocator())
+        #ax_inset.xaxis.set_minor_locator(plt.NullLocator())
+        ax_inset.tick_params(left=False, right=False, bottom=True, top=False)
+        ax_inset.tick_params(axis="x", which="both",
+                     bottom=True, labelbottom=True,
+                     top=False, labeltop=False)
+        ax_inset.xaxis.set_major_locator(MaxNLocator(nbins=3))   # e.g. 0, 20–30, 40–50 depending on range
+        # label them exactly how you want (bold, large)
+        if target == "a":
+            ax_inset.set_yticklabels(
+                [r"$\mathbf{-10^{12}}$", r"$\mathbf{0}$", r"$\mathbf{10^{12}}$"],
+                fontsize=18,  # bump as desired
+            )
+        elif target == "energy":
+            ax_inset.set_yticklabels(
+                [r"$\mathbf{-10^{8}}$", r"$\mathbf{0}$", r"$\mathbf{10^{8}}$"],
+                fontsize=18,  # bump as desired
+            )
+
+        # make sure no offset text shows up
+        ax_inset.yaxis.offsetText.set_visible(False)
+        ax_inset.yaxis.offsetText.set_visible(False)
+
+    axR.legend(loc="upper left", )#fontsize=14)
 
     if title:
         fig.suptitle(title, y=1.02, fontsize=16)
     #axR.set_ylim(-1000,1000)
     plt.tight_layout()
     plt.savefig(f"edeps_and_derivatives{'' if suffix is None else '_'+str(suffix)}.png", dpi=300)
+    plt.savefig(f"edeps_and_derivatives{'' if suffix is None else '_'+str(suffix)}.pdf", dpi=300)
 
     # ===== Optional: variance scaling figure sqrt(var)/N_total vs layer =====
     scaling_fig = None
@@ -349,60 +461,119 @@ def plot_edeps(
                 lblE = f" N={N_total:.1e}"
                 lblD = f" N={N_total:.1e}"
 
-                axS1.plot(xvals, curve_E, '-o', ms=ms, lw=lw, alpha=alpha_lines, label=lblE)
-                axS2.plot(xvals, curve_dE, '-o', ms=ms, lw=lw, alpha=alpha_lines, label=lblD)
+                axS1.plot(xvals, curve_E, '-o', #ms=ms, lw=lw,
+                          alpha=alpha_lines, label=lblE
+                )
+                axS2.plot(xvals, curve_dE, '-o', #ms=ms, lw=lw, 
+                          alpha=alpha_lines, label=lblD
+                )
 
         axS1.set_xlabel("Layer")
         axS1.set_ylabel(r"$\sqrt{\mathrm{var}(E)/N_{\mathrm{total}}}$")
         if grid: axS1.grid(True, linestyle='--', alpha=0.4)
-        axS1.legend(loc="best", fontsize=14)
+        axS1.legend(loc="best", )#fontsize=14)
 
         axS2.set_xlabel("Layer")
         axS2.set_ylabel(r"$\sqrt{\mathrm{var}(dE)/N_{\mathrm{total}}}$")
         if grid: axS2.grid(True, linestyle='--', alpha=0.4)
-        axS2.legend(loc="best", fontsize=14)
+        axS2.legend(loc="best", )#fontsize=14)
 
         plt.tight_layout()
         plt.savefig(f"variance_scaling{'' if suffix is None else '_'+str(suffix)}.png", dpi=300)
+        plt.savefig(f"variance_scaling{'' if suffix is None else '_'+str(suffix)}.pdf", dpi=300)
 
     return fig, (axL, axR), scaling_fig
 
 
-plot_edeps(
-    [
-        #("outputs/absorberderivative_ekcut0.5", "fix + KE>=0.5 MeV"),
-        #("outputs/absorberderivative_noekcut", "fix"),
-        #("outputs/absorberderivative_killdescendents", "fix + kill descendents"),
-        #("outputs/absorberderivative_killdescendents_threshold2_0p1", "fix + kill descedents + threshold2=-0.1"),
-        #("outputs/absorberderivative_killdescendents_threshold2_m1p0", "fix + kill descedents + threshold2=-1"),
-        #("outputs/ad_a2.3_kecut0p1", "fix + kill descedents + ek>0.1 MeV"),
-        #("outputs/ad_a2.3_kecut0p3", "fix + kill descedents + ek>0.3 MeV"),
-        #("outputs/ad_a2.3", "fix + kill descendents (next 80M events)"),
-        #("outputs/ad_a2.3_thr0p05", "fix + kill descendents (threshold=0.05)"),
-        #("outputs/ad_a2.3_thr0p2", "fix + kill descendents (threshold=0.2)"),
-        # {"path": "outputs/ad_energy_E10000", "label": "AD primary energy derivative", "deriv_target": "energy"},
-        #{"path": "outputs/finite_diff_a2.3_eps0.005", "label": "finite diff eps=5e-3", "epsilon": 0.005},
-        #{"path": "outputs/finite_diff_a2.3_eps0.0005", "label": "finite diff eps=5e-4", "epsilon": 0.0005},
-        #{"path": "../jobs/outputs/finite_diff_energy_E10000_eps0p1","label" : "finite diff eps=0.1", "deriv_target" : "energy", "epsilon" : 0.1},
-
-        ##ABSORBER DERIVATIVES
-        {"path": "../jobs/outputs/finite_diff_a2.3_eps0.005", "label": "finite diff eps=5e-3", "epsilon": 0.005},
-        {"path" : "../jobs/outputs/absorberderivative_killdescendents", "label" : "threshold=0.1", "deriv_target" : "a"},
-        ###ENERGY DERIVATIVES
-        #{"path": "../jobs/outputs/finite_diff_energy_E10000_eps10","label" : "finite diff eps=10", "deriv_target" : "energy", "epsilon" : 50},
-        #{"path": "../jobs/outputs/finite_diff_energy_E10000_eps50","label" : "finite diff eps=10", "deriv_target" : "energy", "epsilon" : 50},
-        #{"path": "../jobs/outputs/ad_energy_E10000_thr0p1","label" : "threshold=0.1", "deriv_target" : "energy"},
-
-        #{"path": "../jobs/outputs/ad_a2p3_E10000_kecut0p1_thr_small_thr2_small/", "label" : "ek>0.1 MeV (no geometry SG)", "deriv_target" : "a"},
-        #{"path": "../jobs/outputs/ad_a2p3_E10000_thr0p1","label" : "threshold=0.1", "deriv_target" : "a"},
+def _decode_token(token):
+    return float(token.replace("p", "."))
 
 
+def _encode_token(token):
+    return str(token).replace(".", "p").replace("-", "m")
 
-    ],
-    n_samples_per_file=2e4,
-    nlayers=50,
-    nmaxfiles=5000,
-    #suffix="fix0p1",
-    plot_variance_scaling=False,
-    file_counts=(10, 100, 1000,3500),
-)
+
+def _discover_afn_scan_runs(outputs_dir):
+    pattern = re.compile(r"_nmf(?P<a>[^_]+)_ruf(?P<f>[^_]+)_cre(?P<n>[^_]+)$")
+    groups = {}
+    for run_dir in sorted(outputs_dir.glob("ad_a2p3_E10000_thr0p1_gst1_bbs1_x2_nmf*_ruf*_cre*")):
+        if not run_dir.is_dir():
+            continue
+        if not any(run_dir.glob("edeps_*")):
+            continue
+        match = pattern.search(run_dir.name)
+        if match is None:
+            continue
+        a_tok = match.group("a")
+        f_tok = match.group("f")
+        n_tok = match.group("n")
+        groups.setdefault(a_tok, []).append((run_dir, f_tok, n_tok))
+
+    for a_tok, entries in groups.items():
+        entries.sort(key=lambda item: (_decode_token(item[1]), _decode_token(item[2])))
+    return groups
+
+
+if __name__ == "__main__":
+    outputs_dir = Path("../jobs/outputs")
+    finite_diff_path = Path(
+        "../../../../../hepemshow_reproductionattempt1/hepemshow/build/hepemshow_utils/jobs/outputs/finite_diff_a2.3_eps0.005"
+    )
+    '''
+    afn_groups = _discover_afn_scan_runs(outputs_dir)
+    if not afn_groups:
+        raise FileNotFoundError(
+            f"No 3x3x3 scan directories found under {outputs_dir} "
+            "(expected names like ..._nmf*_ruf*_cre*)."
+        )
+
+    for a_tok in sorted(afn_groups, key=_decode_token):
+        samples = [{"path": finite_diff_path, "label": "Finite diff", "epsilon": 0.005}]
+        for run_dir, f_tok, n_tok in afn_groups[a_tok]:
+            samples.append(
+                {
+                    "path": run_dir,
+                    "label": f"AD (F={f_tok}, N={n_tok})",
+                    "deriv_target": "a",
+                }
+            )
+
+        suffix = f"scan_A{_encode_token(a_tok)}"
+        print(f"Plotting A={a_tok} with {len(afn_groups[a_tok])} AD runs -> suffix '{suffix}'")
+        plot_edeps(
+            samples,
+            n_samples_per_file=1e4,
+            nlayers=50,
+            nmaxfiles=1000,
+            suffix=suffix,
+            plot_variance_scaling=False,
+            file_counts=(10, 100, 1000, 3500),
+        )
+    '''
+
+    samples = [
+        {
+            "path": "../../../../../hepemshow_reproductionattempt1/hepemshow/build/hepemshow_utils/jobs/outputs/finite_diff_a2.3_eps0.005", 
+            "label": "Finite diff", 
+            "epsilon": 0.005
+        },
+        {
+            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p1_gst1_bbs1_x2'),
+            'label': 'AD (baseline bbs1 x2)',
+            'deriv_target': 'a',
+        },
+        {
+            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p1_gst1_bbs1_x2_nmf1p0_gnmf1p0_gpef1e-3_bdf1e-4_ruf1e-6_cre1e-6_ucf1e-4_ute1e-4_usf1e-4_udf1e-8'),
+            'label': 'AD (regularized bundle)',
+            'deriv_target': 'a',
+        },
+    ]
+    plot_edeps(
+        samples,
+        n_samples_per_file=1e4,
+        nlayers=50,
+        nmaxfiles=1000,
+        suffix='baseline_vs_regbundle',
+        plot_variance_scaling=False,
+        file_counts=(10, 100, 1000, 3500),
+    )

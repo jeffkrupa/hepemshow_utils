@@ -1,0 +1,21 @@
+# style.mplstyle
+figure.figsize : 8,6
+figure.dpi : 150
+savefig.dpi : 300
+savefig.bbox : tight
+savefig.pad_inches : 0.04
+
+axes.grid : False
+grid.alpha : 0.25
+
+axes.labelsize : 24
+axes.titlesize : 14
+xtick.labelsize : 20
+ytick.labelsize : 20
+legend.fontsize : 20
+lines.linewidth : 2.0
+lines.markersize : 5
+lines.markeredgewidth : 1
+
+axes.spines.top : True
+axes.spines.right : True
