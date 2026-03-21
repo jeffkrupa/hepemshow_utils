@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=testem3
-#SBATCH --output=/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_BLstepsonly/hepemshow/build/hepemshow_utils/jobs/logs/testem3/job_%j.out
-#SBATCH --error=/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_BLstepsonly/hepemshow/build/hepemshow_utils/jobs/logs/testem3/job_%j.err
+#SBATCH --output=/sdf/data/atlas/u/jkrupa/hepemshow/hepemshow/build/hepemshow_utils/jobs/logs/testem3/job_%j.out
+#SBATCH --error=/sdf/data/atlas/u/jkrupa/hepemshow/hepemshow/build/hepemshow_utils/jobs/logs/testem3/job_%j.err
 #SBATCH --time=03:00:00
 #SBATCH --cpus-per-task=1
 #SBATCH --mem-per-cpu=2G
 #SBATCH --account=atlas:usatlas
 #SBATCH --partition=roma
-#SBATCH --chdir=/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_BLstepsonly/hepemshow/build/
+#SBATCH --chdir=/sdf/data/atlas/u/jkrupa/hepemshow/hepemshow/build/
 
 # Expect SEED and OUTDIR from --export
 : "${SEED:?need SEED}"; : "${OUTDIR:?need OUTDIR}"
@@ -34,6 +34,7 @@ SAME_BOUNDARY_FULL_TRACK=${SAME_BOUNDARY_FULL_TRACK:-}
 SAME_BOUNDARY_HARD_STOP=${SAME_BOUNDARY_HARD_STOP:-}
 NUMIA_MFP_FLOOR=${NUMIA_MFP_FLOOR:-}
 GAMMA_NUMIA_MFP_FLOOR=${GAMMA_NUMIA_MFP_FLOOR:-}
+GAMMA_MFP_CAP=${GAMMA_MFP_CAP:-}
 GAMMA_PE_EKIN_FLOOR=${GAMMA_PE_EKIN_FLOOR:-}
 BOX_DIR_DEN_FLOOR=${BOX_DIR_DEN_FLOOR:-}
 BACKWARD_BOUNDARY_STOP=${BACKWARD_BOUNDARY_STOP:-}
@@ -44,4 +45,4 @@ UMSC_TAU_BLEND_EPS=${UMSC_TAU_BLEND_EPS:-}
 UMSC_SIMPLE_DEN_FLOOR=${UMSC_SIMPLE_DEN_FLOOR:-}
 UMSC_DISP_RAD_FLOOR=${UMSC_DISP_RAD_FLOOR:-}
 
-./hepemshow_utils/jobs/run_testem3_v2.sh "$SEED" "$OUTDIR" "$A_VALUE" "$USE_AD" "$OUTPUT_SUFFIX" "$KE_CUT" "$THRESHOLD" "$THRESHOLD2" "$DERIV_TARGET" "$ENERGY_VALUE" "$EVENTS_PER_JOB" "$GRAZING_STOP_TRACK" "$MSC_DISPLACEMENT" "$MSC_STEP_RANDOM" "$BOUNDARY_TOLERANCE" "$MSC_DISP_SAFE_FLOOR" "$STOP_GRAD_MODE" "$SAME_BOUNDARY_STOP" "$SAME_BOUNDARY_POS_TOL" "$SAME_BOUNDARY_MIN_FLIPS" "$SAME_BOUNDARY_FULL_TRACK" "$SAME_BOUNDARY_HARD_STOP" "$NUMIA_MFP_FLOOR" "$BACKWARD_BOUNDARY_STOP" "$ROTATE_UP_FLOOR" "$CONVERSION_REG_EPS" "$UMSC_COS_DEN_FLOOR" "$UMSC_TAU_BLEND_EPS" "$UMSC_SIMPLE_DEN_FLOOR" "$UMSC_DISP_RAD_FLOOR" "$GAMMA_NUMIA_MFP_FLOOR" "$GAMMA_PE_EKIN_FLOOR" "$BOX_DIR_DEN_FLOOR"
+./hepemshow_utils/jobs/run_testem3.sh "$SEED" "$OUTDIR" "$A_VALUE" "$USE_AD" "$OUTPUT_SUFFIX" "$KE_CUT" "$THRESHOLD" "$THRESHOLD2" "$DERIV_TARGET" "$ENERGY_VALUE" "$EVENTS_PER_JOB" "$GRAZING_STOP_TRACK" "$MSC_DISPLACEMENT" "$MSC_STEP_RANDOM" "$BOUNDARY_TOLERANCE" "$MSC_DISP_SAFE_FLOOR" "$STOP_GRAD_MODE" "$SAME_BOUNDARY_STOP" "$SAME_BOUNDARY_POS_TOL" "$SAME_BOUNDARY_MIN_FLIPS" "$SAME_BOUNDARY_FULL_TRACK" "$SAME_BOUNDARY_HARD_STOP" "$NUMIA_MFP_FLOOR" "$BACKWARD_BOUNDARY_STOP" "$FULL_SANITIZE_STOPGRAD" "$ROTATE_UP_FLOOR" "$CONVERSION_REG_EPS" "$UMSC_COS_DEN_FLOOR" "$UMSC_TAU_BLEND_EPS" "$UMSC_SIMPLE_DEN_FLOOR" "$UMSC_DISP_RAD_FLOOR" "$GAMMA_NUMIA_MFP_FLOOR" "$GAMMA_PE_EKIN_FLOOR" "$BOX_DIR_DEN_FLOOR" "$GAMMA_MFP_CAP"

@@ -21,6 +21,7 @@ SAME_BOUNDARY_FULL_TRACK=""
 SAME_BOUNDARY_HARD_STOP=""
 NUMIA_MFP_FLOOR=""
 GAMMA_NUMIA_MFP_FLOOR=""
+GAMMA_MFP_CAP=""
 GAMMA_PE_EKIN_FLOOR=""
 BOX_DIR_DEN_FLOOR=""
 ROTATE_UP_FLOOR=""
@@ -29,6 +30,8 @@ UMSC_COS_DEN_FLOOR=""
 UMSC_TAU_BLEND_EPS=""
 UMSC_SIMPLE_DEN_FLOOR=""
 UMSC_DISP_RAD_FLOOR=""
+FULL_SANITIZE_STOPGRAD=""
+SUFFIX=""
 MODE="ad"
 EPSILON="0.01"
 A_BASE="2.3"
@@ -78,6 +81,7 @@ Options:
   --same-boundary-hard-stop <N> Pass -i: force full-track stopgrad if total hits on same boundary reach N.
   --numia-mfp-floor <v>    Pass -A: derivative-only mfp floor [mm] for UpdateNumIALeft.
   --gamma-numia-mfp-floor <v> Pass -T: derivative-only mfp floor [mm] for Gamma UpdateNumIALeft.
+  --gamma-mfp-cap <v>     Pass -C: derivative-only mfp cap [mm] for Gamma HowFar step-limit product.
   --gamma-pe-ekin-floor <v> Pass -U: derivative-only ekin floor [MeV] for 1/ekin in gamma photoelectric xsec.
   --box-dir-den-floor <v> Pass -V: derivative-only signed floor for Box::DistanceToOut direction denominators.
   --rotate-up-floor <v>    Pass -F: derivative-only floor for RotateToReferenceFrame denominator.
@@ -86,6 +90,8 @@ Options:
   --umsc-tau-blend-eps <v> Pass -Q: derivative-only smoothing width around UMSC tau branch threshold.
   --umsc-simple-den-floor <v> Pass -R: derivative-only denominator floor in UMSC SimpleScattering.
   --umsc-disp-rad-floor <v> Pass -S: derivative-only floor for UMSC displacement sqrt-radicand derivative.
+  --full-sanitize-stopgrad <0|1> Pass -G: 1=also stop_grad GStepLength+Safety in DisableTrackGradient, 0=position+direction only.
+  --suffix <text>            Append _<text> to the run label (output/log paths).
   -h, --help                 Show this help message and exit.
 EOF
 }
@@ -197,6 +203,10 @@ while [[ $# -gt 0 ]]; do
       GAMMA_NUMIA_MFP_FLOOR="$2"
       shift 2
       ;;
+    --gamma-mfp-cap)
+      GAMMA_MFP_CAP="$2"
+      shift 2
+      ;;
     --gamma-pe-ekin-floor)
       GAMMA_PE_EKIN_FLOOR="$2"
       shift 2
@@ -229,6 +239,14 @@ while [[ $# -gt 0 ]]; do
       UMSC_DISP_RAD_FLOOR="$2"
       shift 2
       ;;
+    --full-sanitize-stopgrad)
+      FULL_SANITIZE_STOPGRAD="$2"
+      shift 2
+      ;;
+    --suffix)
+      SUFFIX="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -257,6 +275,10 @@ if [[ "$GRAZING_STOP_TRACK" != "0" && "$GRAZING_STOP_TRACK" != "1" ]]; then
 fi
 if [[ -n "$BACKWARD_BOUNDARY_STOP" && "$BACKWARD_BOUNDARY_STOP" != "0" && "$BACKWARD_BOUNDARY_STOP" != "1" ]]; then
   echo "Unsupported backward-boundary-stop: ${BACKWARD_BOUNDARY_STOP}. Expected 0 or 1." >&2
+  exit 1
+fi
+if [[ -n "$FULL_SANITIZE_STOPGRAD" && "$FULL_SANITIZE_STOPGRAD" != "0" && "$FULL_SANITIZE_STOPGRAD" != "1" ]]; then
+  echo "Unsupported full-sanitize-stopgrad: ${FULL_SANITIZE_STOPGRAD}. Expected 0 or 1." >&2
   exit 1
 fi
 if [[ -n "$MSC_DISPLACEMENT" && "$MSC_DISPLACEMENT" != "0" && "$MSC_DISPLACEMENT" != "1" ]]; then
@@ -315,6 +337,10 @@ if [[ -n "$GAMMA_NUMIA_MFP_FLOOR" ]] && ! awk -v v="$GAMMA_NUMIA_MFP_FLOOR" 'BEG
   echo "Unsupported gamma-numia-mfp-floor: ${GAMMA_NUMIA_MFP_FLOOR}. Expected non-negative number." >&2
   exit 1
 fi
+if [[ -n "$GAMMA_MFP_CAP" ]] && ! awk -v v="$GAMMA_MFP_CAP" 'BEGIN{exit !(v+0>=0)}'; then
+  echo "Unsupported gamma-mfp-cap: ${GAMMA_MFP_CAP}. Expected non-negative number." >&2
+  exit 1
+fi
 if [[ -n "$GAMMA_PE_EKIN_FLOOR" ]] && ! awk -v v="$GAMMA_PE_EKIN_FLOOR" 'BEGIN{exit !(v+0>=0)}'; then
   echo "Unsupported gamma-pe-ekin-floor: ${GAMMA_PE_EKIN_FLOOR}. Expected non-negative number." >&2
   exit 1
@@ -356,6 +382,9 @@ RUN_LABEL="${RUN_LABEL}_gst${GRAZING_STOP_TRACK}"
 if [[ -n "$BACKWARD_BOUNDARY_STOP" ]]; then
   RUN_LABEL="${RUN_LABEL}_bbs${BACKWARD_BOUNDARY_STOP}"
 fi
+if [[ -n "$FULL_SANITIZE_STOPGRAD" && "$FULL_SANITIZE_STOPGRAD" != "1" ]]; then
+  RUN_LABEL="${RUN_LABEL}_fss${FULL_SANITIZE_STOPGRAD}"
+fi
 RUN_LABEL="${RUN_LABEL}_x${STOP_GRAD_MODE}"
 if [[ -n "$MSC_DISPLACEMENT" ]]; then
   RUN_LABEL="${RUN_LABEL}_md${MSC_DISPLACEMENT}"
@@ -395,6 +424,10 @@ if [[ -n "$GAMMA_NUMIA_MFP_FLOOR" ]]; then
   GNMF_TAG=${GAMMA_NUMIA_MFP_FLOOR//./p}
   RUN_LABEL="${RUN_LABEL}_gnmf${GNMF_TAG}"
 fi
+if [[ -n "$GAMMA_MFP_CAP" ]]; then
+  GMC_TAG=${GAMMA_MFP_CAP//./p}
+  RUN_LABEL="${RUN_LABEL}_gmc${GMC_TAG}"
+fi
 if [[ -n "$GAMMA_PE_EKIN_FLOOR" ]]; then
   GPEF_TAG=${GAMMA_PE_EKIN_FLOOR//./p}
   RUN_LABEL="${RUN_LABEL}_gpef${GPEF_TAG}"
@@ -426,6 +459,10 @@ fi
 if [[ -n "$UMSC_DISP_RAD_FLOOR" ]]; then
   UDF_TAG=${UMSC_DISP_RAD_FLOOR//./p}
   RUN_LABEL="${RUN_LABEL}_udf${UDF_TAG}"
+fi
+
+if [[ -n "$SUFFIX" ]]; then
+  RUN_LABEL="${RUN_LABEL}_${SUFFIX}"
 fi
 
 if [[ -z "$OUTDIR" ]]; then
@@ -460,6 +497,7 @@ for SEED in $(seq "${SEED_START}" "${SEED_END}"); do
       echo "Submitting AD job for missing seed $SEED"
       EXPORTS="SEED=${SEED},OUTDIR=${OUTDIR},A_VALUE=${A_BASE},USE_AD=1,DERIV_TARGET=${DERIV_TARGET},ENERGY_VALUE=${ENERGY_BASE},EVENTS_PER_JOB=${EVENTS_PER_JOB},GRAZING_STOP_TRACK=${GRAZING_STOP_TRACK},STOP_GRAD_MODE=${STOP_GRAD_MODE}"
       [[ -n "$BACKWARD_BOUNDARY_STOP" ]] && EXPORTS+=",BACKWARD_BOUNDARY_STOP=${BACKWARD_BOUNDARY_STOP}"
+      [[ -n "$FULL_SANITIZE_STOPGRAD" ]] && EXPORTS+=",FULL_SANITIZE_STOPGRAD=${FULL_SANITIZE_STOPGRAD}"
       [[ -n "$KE_CUT" ]] && EXPORTS+=",KE_CUT=${KE_CUT}"
       [[ -n "$THRESHOLD" ]] && EXPORTS+=",THRESHOLD=${THRESHOLD}"
       [[ -n "$THRESHOLD2" ]] && EXPORTS+=",THRESHOLD2=${THRESHOLD2}"
@@ -474,6 +512,7 @@ for SEED in $(seq "${SEED_START}" "${SEED_END}"); do
       [[ -n "$SAME_BOUNDARY_HARD_STOP" ]] && EXPORTS+=",SAME_BOUNDARY_HARD_STOP=${SAME_BOUNDARY_HARD_STOP}"
       [[ -n "$NUMIA_MFP_FLOOR" ]] && EXPORTS+=",NUMIA_MFP_FLOOR=${NUMIA_MFP_FLOOR}"
       [[ -n "$GAMMA_NUMIA_MFP_FLOOR" ]] && EXPORTS+=",GAMMA_NUMIA_MFP_FLOOR=${GAMMA_NUMIA_MFP_FLOOR}"
+      [[ -n "$GAMMA_MFP_CAP" ]] && EXPORTS+=",GAMMA_MFP_CAP=${GAMMA_MFP_CAP}"
       [[ -n "$GAMMA_PE_EKIN_FLOOR" ]] && EXPORTS+=",GAMMA_PE_EKIN_FLOOR=${GAMMA_PE_EKIN_FLOOR}"
       [[ -n "$BOX_DIR_DEN_FLOOR" ]] && EXPORTS+=",BOX_DIR_DEN_FLOOR=${BOX_DIR_DEN_FLOOR}"
       [[ -n "$ROTATE_UP_FLOOR" ]] && EXPORTS+=",ROTATE_UP_FLOOR=${ROTATE_UP_FLOOR}"
@@ -496,6 +535,7 @@ for SEED in $(seq "${SEED_START}" "${SEED_END}"); do
         EXPORTS="SEED=${SEED},OUTDIR=${OUTDIR},A_VALUE=${A_PLUS},USE_AD=0,OUTPUT_SUFFIX=plus,DERIV_TARGET=${DERIV_TARGET},ENERGY_VALUE=${ENERGY_BASE},EVENTS_PER_JOB=${EVENTS_PER_JOB},GRAZING_STOP_TRACK=${GRAZING_STOP_TRACK},STOP_GRAD_MODE=${STOP_GRAD_MODE}"
       fi
       [[ -n "$BACKWARD_BOUNDARY_STOP" ]] && EXPORTS+=",BACKWARD_BOUNDARY_STOP=${BACKWARD_BOUNDARY_STOP}"
+      [[ -n "$FULL_SANITIZE_STOPGRAD" ]] && EXPORTS+=",FULL_SANITIZE_STOPGRAD=${FULL_SANITIZE_STOPGRAD}"
       [[ -n "$KE_CUT" ]] && EXPORTS+=",KE_CUT=${KE_CUT}"
       [[ -n "$THRESHOLD" ]] && EXPORTS+=",THRESHOLD=${THRESHOLD}"
       [[ -n "$THRESHOLD2" ]] && EXPORTS+=",THRESHOLD2=${THRESHOLD2}"
@@ -510,6 +550,7 @@ for SEED in $(seq "${SEED_START}" "${SEED_END}"); do
       [[ -n "$SAME_BOUNDARY_HARD_STOP" ]] && EXPORTS+=",SAME_BOUNDARY_HARD_STOP=${SAME_BOUNDARY_HARD_STOP}"
       [[ -n "$NUMIA_MFP_FLOOR" ]] && EXPORTS+=",NUMIA_MFP_FLOOR=${NUMIA_MFP_FLOOR}"
       [[ -n "$GAMMA_NUMIA_MFP_FLOOR" ]] && EXPORTS+=",GAMMA_NUMIA_MFP_FLOOR=${GAMMA_NUMIA_MFP_FLOOR}"
+      [[ -n "$GAMMA_MFP_CAP" ]] && EXPORTS+=",GAMMA_MFP_CAP=${GAMMA_MFP_CAP}"
       [[ -n "$GAMMA_PE_EKIN_FLOOR" ]] && EXPORTS+=",GAMMA_PE_EKIN_FLOOR=${GAMMA_PE_EKIN_FLOOR}"
       [[ -n "$BOX_DIR_DEN_FLOOR" ]] && EXPORTS+=",BOX_DIR_DEN_FLOOR=${BOX_DIR_DEN_FLOOR}"
       [[ -n "$ROTATE_UP_FLOOR" ]] && EXPORTS+=",ROTATE_UP_FLOOR=${ROTATE_UP_FLOOR}"
@@ -529,6 +570,7 @@ for SEED in $(seq "${SEED_START}" "${SEED_END}"); do
         EXPORTS="SEED=${SEED},OUTDIR=${OUTDIR},A_VALUE=${A_MINUS},USE_AD=0,OUTPUT_SUFFIX=minus,DERIV_TARGET=${DERIV_TARGET},ENERGY_VALUE=${ENERGY_BASE},EVENTS_PER_JOB=${EVENTS_PER_JOB},GRAZING_STOP_TRACK=${GRAZING_STOP_TRACK},STOP_GRAD_MODE=${STOP_GRAD_MODE}"
       fi
       [[ -n "$BACKWARD_BOUNDARY_STOP" ]] && EXPORTS+=",BACKWARD_BOUNDARY_STOP=${BACKWARD_BOUNDARY_STOP}"
+      [[ -n "$FULL_SANITIZE_STOPGRAD" ]] && EXPORTS+=",FULL_SANITIZE_STOPGRAD=${FULL_SANITIZE_STOPGRAD}"
       [[ -n "$KE_CUT" ]] && EXPORTS+=",KE_CUT=${KE_CUT}"
       [[ -n "$THRESHOLD" ]] && EXPORTS+=",THRESHOLD=${THRESHOLD}"
       [[ -n "$THRESHOLD2" ]] && EXPORTS+=",THRESHOLD2=${THRESHOLD2}"
@@ -543,6 +585,7 @@ for SEED in $(seq "${SEED_START}" "${SEED_END}"); do
       [[ -n "$SAME_BOUNDARY_HARD_STOP" ]] && EXPORTS+=",SAME_BOUNDARY_HARD_STOP=${SAME_BOUNDARY_HARD_STOP}"
       [[ -n "$NUMIA_MFP_FLOOR" ]] && EXPORTS+=",NUMIA_MFP_FLOOR=${NUMIA_MFP_FLOOR}"
       [[ -n "$GAMMA_NUMIA_MFP_FLOOR" ]] && EXPORTS+=",GAMMA_NUMIA_MFP_FLOOR=${GAMMA_NUMIA_MFP_FLOOR}"
+      [[ -n "$GAMMA_MFP_CAP" ]] && EXPORTS+=",GAMMA_MFP_CAP=${GAMMA_MFP_CAP}"
       [[ -n "$GAMMA_PE_EKIN_FLOOR" ]] && EXPORTS+=",GAMMA_PE_EKIN_FLOOR=${GAMMA_PE_EKIN_FLOOR}"
       [[ -n "$BOX_DIR_DEN_FLOOR" ]] && EXPORTS+=",BOX_DIR_DEN_FLOOR=${BOX_DIR_DEN_FLOOR}"
       [[ -n "$ROTATE_UP_FLOOR" ]] && EXPORTS+=",ROTATE_UP_FLOOR=${ROTATE_UP_FLOOR}"

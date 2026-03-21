@@ -30,6 +30,7 @@ def plot_edeps(
     file_counts=(10, 100, 1000),
     scaling_figsize=(15, 8),
     nmaxfiles=100,
+    seed_range=None,
     inset_unprotected=None,
     inset_loc="upper right",
     inset_size=("37%", "37%"),
@@ -128,7 +129,31 @@ def plot_edeps(
                 "deriv_target": default_deriv_target,
             })
 
-    def _load_file(path):
+    # Parse seed_range (e.g. "3000-3999") into (lo, hi) inclusive
+    _seed_lo, _seed_hi = None, None
+    if seed_range is not None:
+        parts = seed_range.split("-")
+        if len(parts) != 2:
+            raise ValueError(f"seed_range must be 'lo-hi', got '{seed_range}'")
+        _seed_lo, _seed_hi = int(parts[0]), int(parts[1])
+
+    _seed_re = re.compile(r'_(\d+)$')
+
+    def _filter_by_seed(files):
+        """Filter file list by seed_range. Extract seed from trailing _NNN in filename stem."""
+        if _seed_lo is None:
+            return list(files)[:nmaxfiles]
+        out = []
+        for f in files:
+            m = _seed_re.search(f.stem)
+            if m is None:
+                continue
+            s = int(m.group(1))
+            if _seed_lo <= s <= _seed_hi:
+                out.append(f)
+        return sorted(out)
+
+    def _load_file(path):            
         arr = np.loadtxt(path)
         if arr.ndim != 2 or arr.shape[1] != 4:
             raise ValueError(f"{path} must have shape (N, 4); got {arr.shape}")
@@ -168,10 +193,12 @@ def plot_edeps(
             _ensure_paths_exist(path)
             n_samples = 0.0
             if path.is_dir():
-                files = sorted(path.glob("*"))[:nmaxfiles]
-                #print(files)
+                files = _filter_by_seed(path.glob("*"))
                 arrays = []
                 for f in files:
+                    #if "_4645" in f.name or "_643" in f.name or "_577" in f.name:  # known bad seeds with NaNs
+                    #    print(f"Skipping file with known bad seed: {f}")
+                    #    continue
                     arr = _load_file(f)
                     arrays.append(arr)
                 if not arrays:
@@ -216,8 +243,6 @@ def plot_edeps(
                 cores = sorted(core for core, pair in pair_map.items() if "plus" in pair and "minus" in pair)
                 if not cores:
                     raise ValueError(f"No plus/minus file pairs found in {base}")
-                if nmaxfiles is not None:
-                    cores = cores[:nmaxfiles]
                 pairs = [{"plus": pair_map[core]["plus"], "minus": pair_map[core]["minus"]} for core in cores]
                 arrays = _load_finite_diff_from_pairs(pairs, epsilon)
                 arr_avg = np.mean(arrays, axis=0)
@@ -325,6 +350,7 @@ def plot_edeps(
     y_min, y_max = axR.get_ylim()
     y_pad = 0.4 * (y_max - y_min)
     axR.set_ylim(y_min, y_max + y_pad)
+    #axR.set_yscale("symlog")
 
     if inset_unprotected is None and inset_from_samples is not None:
         inset_unprotected = {
@@ -341,7 +367,7 @@ def plot_edeps(
             inset_label = inset_path.name
         _ensure_paths_exist(inset_path)
         if inset_path.is_dir():
-            files = sorted(inset_path.glob("*"))[:nmaxfiles]
+            files = _filter_by_seed(inset_path.glob("*"))
             arrays = [_load_file(f) for f in files]
             if not arrays:
                 raise ValueError(f"No valid files found in directory {inset_path}")
@@ -552,28 +578,70 @@ if __name__ == "__main__":
     '''
 
     samples = [
-        {
-            "path": "../../../../../hepemshow_reproductionattempt1/hepemshow/build/hepemshow_utils/jobs/outputs/finite_diff_a2.3_eps0.005", 
+        
+        { #MAIN ABS ONE
+            "path": "/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_reproductionattempt1/hepemshow/build/hepemshow_utils/jobs/outputs/finite_diff_a2.3_eps0.005", 
             "label": "Finite diff", 
             "epsilon": 0.005
         },
-        {
-            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p1_gst1_bbs1_x2'),
-            'label': 'AD (baseline bbs1 x2)',
+        { 
+            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p0_gst1_bbs1_x2_gmc1000_cre0p001_copysign_fix'),
+            'label': 'AD (f=0.0, cre1e-3, gmc1000)',
             'deriv_target': 'a',
         },
-        {
-            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p1_gst1_bbs1_x2_nmf1p0_gnmf1p0_gpef1e-3_bdf1e-4_ruf1e-6_cre1e-6_ucf1e-4_ute1e-4_usf1e-4_udf1e-8'),
-            'label': 'AD (regularized bundle)',
+        { 
+            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc1000_cre1e-3_copysign_fix'),
+            'label': 'AD (f=0.2, cre1e-3, gmc1000)',
             'deriv_target': 'a',
         },
+
+        #{ #MAIN ENERGY ONE
+        #    "path": "/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_reproductionattempt1/hepemshow/build/hepemshow_utils/jobs/outputs/finite_diff_energy_E10000_eps50/", 
+        #    "label": "Finite diff", 
+        #    "epsilon": 50
+        #},
+
+        #{
+        #    'path': Path('../jobs/outputs/ad_energy_E10000_thr0p2_gst1_bbs1_x2_copysign_fix'),
+        #    'label': 'AD (f=0.2)',
+        #    'deriv_target': 'energy',
+        #},
+        #{
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p05_gst1_bbs1_x2_copysign_fix'),
+        #    'label': 'AD (f=0.05)',
+        #    'deriv_target': 'a',
+        #},
+        #{
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_copysign_fix'),
+        #    'label': 'AD (f=0.2)',
+        #    'deriv_target': 'a',
+        #},
+
+        #{
+        #    'path': Path('../jobs/outputs/ad_energy_E10000_thr0p2_gst1_bbs1_x2_copysign_fix'),
+        #    'label': 'AD (f=0.2)',
+        #    'deriv_target': 'a',
+        #},
+
+
+        #{
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p1_gst1_bbs1_x2_nmf10_gnmf10_copysign_fix'),
+        #    'label': 'AD (with numia regularization)',
+        #    'deriv_target': 'a',
+        #},
+        #{
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p1_gst1_bbs1_ffs1_x2_nmf1p0_gnmf1p0_gpef0p01_bdf0p01_ruf0p01_cre0p01_ucf0p1_ute0p01_usf0p01_udf1e-6'),
+        #    'label': 'AD (regularize DTO+denoms)',
+        #    'deriv_target': 'a',
+        #},
     ]
     plot_edeps(
         samples,
-        n_samples_per_file=1e4,
+        n_samples_per_file=2e4,
         nlayers=50,
-        nmaxfiles=1000,
-        suffix='baseline_vs_regbundle',
+        nmaxfiles=5000,
+        seed_range="1-1000", 
+        suffix='baseline',
         plot_variance_scaling=False,
         file_counts=(10, 100, 1000, 3500),
     )
