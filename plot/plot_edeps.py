@@ -412,9 +412,9 @@ def plot_edeps(
             return rf"{coeff:.1f}×10$^{{{exp}}}$"
         #ax_inset.yaxis.set_major_formatter(FuncFormatter(_sci_tick))
         if target == "a":
-            ax_inset.set_yticks([-2.5e12, 0, 2.5e12])
+            ax_inset.set_yticks([-3.5e8, 0, 3.5e8])
         elif target == "energy":
-            ax_inset.set_yticks([-1.5e8, 0, 1.5e8])
+            ax_inset.set_yticks([-2e4, 0, 2e4])
         ax_inset.minorticks_off()
         ax_inset.yaxis.set_minor_locator(plt.NullLocator())
         #ax_inset.xaxis.set_minor_locator(plt.NullLocator())
@@ -426,12 +426,12 @@ def plot_edeps(
         # label them exactly how you want (bold, large)
         if target == "a":
             ax_inset.set_yticklabels(
-                [r"$\mathbf{-10^{12}}$", r"$\mathbf{0}$", r"$\mathbf{10^{12}}$"],
+                [r"$\mathbf{-10^{8}}$", r"$\mathbf{0}$", r"$\mathbf{10^{8}}$"],
                 fontsize=18,  # bump as desired
             )
         elif target == "energy":
             ax_inset.set_yticklabels(
-                [r"$\mathbf{-10^{8}}$", r"$\mathbf{0}$", r"$\mathbf{10^{8}}$"],
+                [r"$\mathbf{-10^{4}}$", r"$\mathbf{0}$", r"$\mathbf{10^{4}}$"],
                 fontsize=18,  # bump as desired
             )
 
@@ -579,68 +579,162 @@ if __name__ == "__main__":
 
     samples = [
         
-        { #MAIN ABS ONE
-            "path": "/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_reproductionattempt1/hepemshow/build/hepemshow_utils/jobs/outputs/finite_diff_a2.3_eps0.005", 
-            "label": "Finite diff", 
-            "epsilon": 0.005
-        },
-        { 
-            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p0_gst1_bbs1_x2_gmc1000_cre0p001_copysign_fix'),
-            'label': 'AD (f=0.0, cre1e-3, gmc1000)',
-            'deriv_target': 'a',
-        },
-        { 
-            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc1000_cre1e-3_copysign_fix'),
-            'label': 'AD (f=0.2, cre1e-3, gmc1000)',
-            'deriv_target': 'a',
-        },
-
-        #{ #MAIN ENERGY ONE
-        #    "path": "/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_reproductionattempt1/hepemshow/build/hepemshow_utils/jobs/outputs/finite_diff_energy_E10000_eps50/", 
-        #    "label": "Finite diff", 
-        #    "epsilon": 50
+        ##########MAIN ABS ONE
+        #{ 
+        #    "path": "../jobs/outputs/finite_diff_a2p3_eps0p005_E10000_gst1_x2/", 
+        #    "label": "Finite diff (eps=0.005)", 
+        #    "epsilon": 0.005
         #},
 
         #{
-        #    'path': Path('../jobs/outputs/ad_energy_E10000_thr0p2_gst1_bbs1_x2_copysign_fix'),
-        #    'label': 'AD (f=0.2)',
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc1000_cre1e-3_copysign_fix/'),
+        #    'label': 'AD (f=0.2 regularized)',
+        #    'deriv_target': 'a',
+        #},
+        #{
+        #    'path' : Path("../jobs/outputs/ad_a2p3_E10000_gst0_bbs0_x0/"),
+        #    'label': 'AD (no stopgrad)',
+        #    'inset_unprotected': 'True',
+        #},
+        ##########MAIN ABS ONE
+
+        ########## MAIN ENERGY ONE
+        #{ 
+        #    "path": "../jobs/outputs/finite_diff_energy_E10000_eps10_gst1_x2/", 
+        #    "label": "Finite diff (eps=10)", 
+        #    "epsilon": 10,
+        #    'deriv_target': 'energy',
+        #},
+        #{ 
+        #    "path": "../jobs/outputs/finite_diff_energy_E10000_eps50_gst1_x2/", 
+        #    "label": "Finite diff (eps=50)", 
+        #    "epsilon": 50,
+        #    'deriv_target': 'energy',
+        #},
+        #{ 
+        #    "path": "../jobs/outputs/finite_diff_energy_E10000_eps100_gst1_x2/", 
+        #    "label": "Finite diff (eps=100)", 
+        #    "epsilon": 100,
         #    'deriv_target': 'energy',
         #},
         #{
-        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p05_gst1_bbs1_x2_copysign_fix'),
-        #    'label': 'AD (f=0.05)',
-        #    'deriv_target': 'a',
+        #    'path' : Path("../jobs/outputs/ad_energy_E10000_thr0p2_gst1_bbs1_x2_gmc1000_cre0p001_copysign_fix/"),
+        #    'label': 'AD (f=0.2 regularized)',
+        #    'deriv_target': 'energy',
         #},
         #{
-        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_copysign_fix'),
+        #    'path': Path('../jobs/outputs/ad_energy_E10000_gst0_bbs0_x0'),
+        #    'label': 'AD (no stopgrad)',
+        #    'inset_unprotected': 'True',
+        #    'deriv_target': 'energy',
+        #},
+        ########## MAIN ENERGY ONE
+
+        ########## F SCAN 
+        #{ 
+        #    "path": "/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_reproductionattempt1/hepemshow/build/hepemshow_utils/jobs/outputs/finite_diff_a2.3_eps0.005/", 
+        #    "label": "Finite diff", 
+        #    "epsilon": 0.005,
+        #    'deriv_target': 'a',
+        #},
+        #{ 
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p0_gst1_bbs1_x2_gmc1000_cre0p001_copysign_fix/'),
+        #    'label': 'AD (f=0.0)',
+        #    'deriv_target': 'a',
+        #},
+        #{ 
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p1_gst1_bbs1_x2_gmc1000_cre0p001_copysign_fix/'),
+        #    'label': 'AD (f=0.1)',
+        #    'deriv_target': 'a',
+        #},
+        #{ 
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc1000_cre1e-3_copysign_fix/'),
         #    'label': 'AD (f=0.2)',
         #    'deriv_target': 'a',
         #},
-
-        #{
-        #    'path': Path('../jobs/outputs/ad_energy_E10000_thr0p2_gst1_bbs1_x2_copysign_fix'),
-        #    'label': 'AD (f=0.2)',
-        #    'deriv_target': 'a',
-        #},
-
-
-        #{
-        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p1_gst1_bbs1_x2_nmf10_gnmf10_copysign_fix'),
-        #    'label': 'AD (with numia regularization)',
+        #{ 
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p5_gst1_bbs1_x2_gmc1000_cre0p001_copysign_fix'),
+        #    'label': 'AD (f=0.5)',
         #    'deriv_target': 'a',
         #},
         #{
-        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p1_gst1_bbs1_ffs1_x2_nmf1p0_gnmf1p0_gpef0p01_bdf0p01_ruf0p01_cre0p01_ucf0p1_ute0p01_usf0p01_udf1e-6'),
-        #    'label': 'AD (regularize DTO+denoms)',
-        #    'deriv_target': 'a',
+        #    'path' : Path("../jobs/outputs/ad_a2p3_E10000_gst0_bbs0_x0/"),
+        #    'label': 'AD (no stopgrad)',
+        #    'inset_unprotected': 'True',
         #},
+        ########## F SCAN 
+
+
+        ######### GAMMA MFP CAP SCAN 
+        # { 
+        #    "path": "/fs/ddn/sdf/group/atlas/d/jkrupa/hepemshow_reproductionattempt1/hepemshow/build/hepemshow_utils/jobs/outputs/finite_diff_a2.3_eps0.005/", 
+        #    "label": "Finite diff", 
+        #    "epsilon": 0.005,
+        #    'deriv_target': 'a',
+        # },
+        # {
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc100_cre0p001_copysign_fix/'),
+        #    'label': 'AD (f=0.2, cre=1e-3, gmc=100)',
+        #    'deriv_target': 'a',
+        # },
+        # { 
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc1000_cre1e-3_copysign_fix'),
+        #    'label': 'AD (f=0.2, cre=1e-3, gmc=1000)',
+        #    'deriv_target': 'a',
+        # },
+        # { 
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc10000_cre0p001_copysign_fix'),
+        #    'label': 'AD (f=0.2, cre=1e-3, gmc=10000)',
+        #    'deriv_target': 'a',
+        # },
+        # { 
+        #    'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_cre0p001_copysign_fix'),
+        #    'label': 'AD (f=0.2, cre=1e-3, gmc=inf)',
+        #    'deriv_target': 'a',
+        # },
+
+        ######### GAMMA MFP CAP SCAN 
+
+
+        ########## CONV REG EPS SCAN 
+        { 
+           "path": "../jobs/outputs/finite_diff_a2p3_eps0p005_E10000_gst1_x2/", 
+           "label": "Finite diff", 
+           "epsilon": 0.005,
+           'deriv_target': 'a',
+        },
+        {
+           'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc1000_cre0p0001_copysign_fix/'),
+           'label': 'AD (f=0.2, cre=1e-4, gmc=1000)',
+            'deriv_target': 'a',
+        },
+        {
+            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc1000_cre0p001_copysign_fix/'),
+            'label': 'AD (f=0.2, cre=1e-3, gmc=1000)',
+            'deriv_target': 'a',
+        },
+        {
+            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc1000_cre0p01_copysign_fix/'),
+            'label': 'AD (f=0.2, cre=1e-2, gmc=1000)',
+            'deriv_target': 'a',
+        },
+        {
+            'path': Path('../jobs/outputs/ad_a2p3_E10000_thr0p2_gst1_bbs1_x2_gmc1000_copysign_fix/'),
+            'label': 'AD (f=0.2, no cre, gmc=1000)',
+            'deriv_target': 'a',
+        },
+
+        ########## CONV REG EPS SCAN 
+
+
+
     ]
     plot_edeps(
         samples,
         n_samples_per_file=2e4,
         nlayers=50,
-        nmaxfiles=5000,
-        seed_range="1-1000", 
+        nmaxfiles=1000,
+        seed_range="4000-5000", 
         suffix='baseline',
         plot_variance_scaling=False,
         file_counts=(10, 100, 1000, 3500),
